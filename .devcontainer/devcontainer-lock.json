@@ -15,6 +15,11 @@
       "resolved": "ghcr.io/devcontainers/features/github-cli@sha256:bd7ab48a832228f633239277552c30b353867fef2e5b037e064b4e64f0b843f2",
       "integrity": "sha256:bd7ab48a832228f633239277552c30b353867fef2e5b037e064b4e64f0b843f2"
     },
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "1.4.0",
+      "resolved": "ghcr.io/devcontainers/features/go@sha256:3b2c7acfdb24de88292283d10eb7517ccc45f60ae22a97030f1cf4fbd03634f3",
+      "integrity": "sha256:3b2c7acfdb24de88292283d10eb7517ccc45f60ae22a97030f1cf4fbd03634f3"
+    },
     "ghcr.io/devcontainers/features/terraform:1": {
       "version": "1.5.0",
       "resolved": "ghcr.io/devcontainers/features/terraform@sha256:bc9eaf21aaba050bace59f411c282cb58058535a48232c059e60c19f86caa8f5",
