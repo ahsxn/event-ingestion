@@ -17,6 +17,7 @@ provider "aws" {
   skip_requesting_account_id  = true
 
   endpoints {
-    kinesis = "http://localhost:4566"
+    dynamodb = "http://localhost:4566"
+    kinesis  = "http://localhost:4566"
   }
 }

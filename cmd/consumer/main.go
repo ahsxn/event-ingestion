@@ -3,17 +3,28 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"event-ingestion/internal/events"
 	"event-ingestion/internal/metrics"
+	"event-ingestion/internal/storage"
 	"fmt"
 	"log"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis"
 	"github.com/aws/aws-sdk-go-v2/service/kinesis/types"
 )
+
+/**
+* @TODO implement Kinesis checkpoints
+* currently using trim horizon, which means
+* when we restart or after a crash we start from
+* the first event in the stream, rather than the
+* last event that was successfully consumed
+ */
 
 const (
 	streamName = "commerce-stream-events"
@@ -30,6 +41,14 @@ func main() {
 	}
 
 	kinesisClient := kinesis.NewFromConfig(cfg)
+
+	dynamodbClient := dynamodb.NewFromConfig(cfg)
+
+	metricStore := storage.New(
+		dynamodbClient,
+		"event-ingestion-metrics",
+		"event-ingestion-processed-events",
+	)
 
 	iteratorOutput, err := kinesisClient.GetShardIterator(ctx, &kinesis.GetShardIteratorInput{
 		StreamName:        aws.String(streamName),
@@ -70,15 +89,47 @@ func main() {
 				continue
 			}
 
-			for _, update := range updates {
-				fmt.Printf(
-					"metric=%s dimension=%s value=%d timestamp=%s\n",
-					update.Metric,
-					update.Dimension,
-					update.Value,
-					update.Timestamp,
-				)
+			err = metricStore.ApplyEvent(ctx, event.ID, updates)
+
+			if errors.Is(err, storage.ErrAlreadyProcessed) {
+				log.Printf("skip duplicate event id = %s", event.ID)
+				continue
 			}
+
+			if err != nil {
+				log.Printf(
+					"persist event id=%s: %v",
+					event.ID,
+					err,
+				)
+				continue
+			}
+
+			log.Printf(
+				"processed event id=%s type=%s metrics=%d",
+				event.ID,
+				event.Type,
+				len(updates),
+			)
+			// for _, update := range updates {
+
+			// 	if err := metricStore.Increment(ctx, update); err != nil {
+			// 		log.Printf(
+			// 			"persist metric for event %s %v",
+			// 			event.ID,
+			// 			err,
+			// 		)
+			// 		continue
+			// 	}
+
+			// 	fmt.Printf(
+			// 		"metric=%s dimension=%s value=%d timestamp=%s\n",
+			// 		update.Metric,
+			// 		update.Dimension,
+			// 		update.Value,
+			// 		update.Timestamp,
+			// 	)
+			// }
 
 			// fmt.Printf(
 			// 	"id:%s type:%s timestamp:%s ",
