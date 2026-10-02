@@ -34,4 +34,20 @@ return [
             'channel' => env('SLACK_BOT_USER_DEFAULT_CHANNEL'),
         ],
     ],
+    'aws' => [
+        'region' => env('AWS_REGION', 'us-east-1'),
+        'endpoint' => env('AWS_ENDPOINT_URL'),
+
+        'key' => env('AWS_ACCESS_KEY_ID'),
+        'secret' => env('AWS_SECRET_ACCESS_KEY'),
+
+        'metrics_table' => env(
+            'METRICS_TABLE_NAME',
+            'event-ingestion-metrics'
+        ),
+    ],
+
+    'ingestion' => [
+        'url' => env('EVENT_INGESTION_URL'),
+    ],
 ];

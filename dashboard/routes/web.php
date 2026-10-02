@@ -1,11 +1,15 @@
 <?php
 
+use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DemoEventController;
 use Illuminate\Support\Facades\Route;
 
-Route::inertia('/', 'welcome')->name('home');
+Route::get('/', DashboardController::class)
+    ->name('dashboard');
 
-Route::middleware(['auth', 'verified'])->group(function () {
-    Route::inertia('dashboard', 'dashboard')->name('dashboard');
-});
+Route::post(
+    '/demo-events/{type}',
+    DemoEventController::class,
+)->name('demo-events.store');
 
-require __DIR__.'/settings.php';
+require __DIR__ . '/settings.php';
