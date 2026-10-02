@@ -19,6 +19,8 @@ provider "aws" {
   endpoints {
     apigatewayv2 = "http://localhost:4566"
     dynamodb     = "http://localhost:4566"
+    ecr          = "http://localhost:4566"
+    ecs          = "http://localhost:4566"
     iam          = "http://localhost:4566"
     kinesis      = "http://localhost:4566"
     lambda       = "http://localhost:4566"
