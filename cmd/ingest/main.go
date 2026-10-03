@@ -4,9 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"log"
+	"log/slog"
 	"os"
 
 	domainevents "event-ingestion/internal/events"
+	"event-ingestion/internal/logging"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -18,6 +20,7 @@ import (
 type Handler struct {
 	kinesis    *kinesis.Client
 	streamName string
+	logger     *slog.Logger
 }
 
 func main() {
@@ -35,9 +38,12 @@ func main() {
 		log.Fatal("KINESIS_STREAM_NAME is required")
 	}
 
+	logger := logging.New("ingest")
+
 	handler := Handler{
 		kinesis:    kinesis.NewFromConfig(cfg),
 		streamName: streamName,
+		logger:     logger,
 	}
 
 	lambda.Start(handler.Handle)
@@ -64,7 +70,12 @@ func (h *Handler) Handle(
 	data, err := json.Marshal(event)
 
 	if err != nil {
-		log.Printf("encode event id=%s: %v", event.ID, err)
+		h.logger.Error(
+			"failed to encode event",
+			"event id", event.ID,
+			"error", err,
+		)
+
 		return response(500, `{"error":"internal error"}`), nil
 	}
 
@@ -78,14 +89,19 @@ func (h *Handler) Handle(
 	)
 
 	if err != nil {
-		log.Printf("publish event id=%s: %v", event.ID, err)
+		h.logger.Error(
+			"failed to publish event",
+			"event id", event.ID,
+			"error", err,
+		)
+
 		return response(500, `{"error":"failed to publish event"}`), nil
 	}
 
-	log.Printf(
-		"accepted event id=%s type=%s",
-		event.ID,
-		event.Type,
+	h.logger.Info(
+		"event accepted",
+		"event_id", event.ID,
+		"event_type", event.Type,
 	)
 
 	return response(202, `{"status":"accepted"}`), nil

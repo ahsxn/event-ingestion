@@ -132,6 +132,16 @@ resource "aws_ecs_task_definition" "worker" {
 
       stopTimeout = 30
 
+      logConfiguration = {
+        logDriver = "awslogs"
+
+        options = {
+          awslogs-group         = aws_cloudwatch_log_group.worker.name
+          awslogs-region        = "us-east-1"
+          awslogs-stream-prefix = "worker"
+        }
+      }
+
       environment = [
         {
           name  = "AWS_ENDPOINT_URL"
@@ -179,4 +189,26 @@ resource "aws_ecs_service" "worker" {
     aws_iam_role_policy.worker_task,
     aws_iam_role_policy.worker_execution
   ]
+}
+
+resource "aws_iam_role_policy" "worker_execution_logs" {
+  name = "cloudwatch-logs"
+  role = aws_iam_role.worker_execution.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect = "Allow"
+
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+
+        Resource = "${aws_cloudwatch_log_group.worker.arn}:*"
+      }
+    ]
+  })
 }

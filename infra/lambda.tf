@@ -64,3 +64,25 @@ resource "aws_lambda_function" "ingest" {
     aws_iam_role_policy.ingest_kinesis
   ]
 }
+
+resource "aws_iam_role_policy" "ingest_logs" {
+  name = "cloudwatch-logs"
+  role = aws_iam_role.ingest.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect = "Allow"
+
+        Action = [
+          "logs:CreateLogStream",
+          "logs:PutLogEvents"
+        ]
+
+        Resource = "${aws_cloudwatch_log_group.ingest.arn}:*"
+      }
+    ]
+  })
+}

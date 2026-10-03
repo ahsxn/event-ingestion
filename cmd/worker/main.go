@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"event-ingestion/internal/events"
+	"event-ingestion/internal/logging"
 	"event-ingestion/internal/metrics"
 	"event-ingestion/internal/storage"
 	"fmt"
 	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"sync"
@@ -29,13 +31,6 @@ import (
 * the first event in the stream, rather than the
 * last event that was successfully consumed
  */
-
-const (
-// streamName               = "commerce-stream-events"
-// metricsTableName         = "event-ingestion-metrics"
-// processedEventsTableName = "event-ingestion-processed-events"
-// shardId                  = "shardId-000000000000"
-)
 
 func main() {
 	streamName := requiredEnv("KINESIS_STREAM_NAME")
@@ -68,6 +63,8 @@ func main() {
 		processedEventsTableName,
 	)
 
+	logger := logging.New("worker")
+
 	shards, err := listShards(ctx, kinesisClient, streamName)
 
 	if err != nil {
@@ -92,9 +89,12 @@ func main() {
 		go func() {
 			defer wg.Done()
 
-			log.Printf("starting shard consumer shard=%s", shardId)
+			logger.Info(
+				"shard consumer started",
+				"shard_id", shardId,
+			)
 
-			err := consumeShard(ctx, kinesisClient, metricStore, streamName, shardId)
+			err := consumeShard(ctx, logger, kinesisClient, metricStore, streamName, shardId)
 
 			if err != nil && !errors.Is(err, context.Canceled) {
 				errCh <- fmt.Errorf(
@@ -104,22 +104,28 @@ func main() {
 				)
 			}
 
-			log.Printf("stopped shard consumer shard=%s", shardId)
+			logger.Info(
+				"shard consumer stopped",
+				"shard_id", shardId,
+			)
 		}()
 	}
 
 	select {
 	case <-ctx.Done():
-		log.Printf("shutdown requested")
+		logger.Info("shutdown requested")
 
 	case err := <-errCh:
-		log.Printf("worker failed: %v", err)
+		logger.Error(
+			"wokrer failed",
+			"error", err,
+		)
 		stop()
 	}
 
 	wg.Wait()
 
-	log.Printf("worker stopped")
+	logger.Info("worker stopped")
 }
 
 func listShards(ctx context.Context, client *kinesis.Client, streamName string) ([]types.Shard, error) {
@@ -139,6 +145,7 @@ func listShards(ctx context.Context, client *kinesis.Client, streamName string) 
 
 func consumeShard(
 	ctx context.Context,
+	logger *slog.Logger,
 	client *kinesis.Client,
 	store *storage.Store,
 	streamName string,
@@ -171,7 +178,7 @@ func consumeShard(
 		}
 
 		for _, record := range result.Records {
-			if err := processRecord(ctx, store, record); err != nil {
+			if err := processRecord(ctx, logger, store, record); err != nil {
 				return err
 			}
 
@@ -187,7 +194,7 @@ func consumeShard(
 	return nil
 }
 
-func processRecord(ctx context.Context, store *storage.Store, record types.Record) error {
+func processRecord(ctx context.Context, logger *slog.Logger, store *storage.Store, record types.Record) error {
 	var event events.Event
 
 	if err := json.Unmarshal(record.Data, &event); err != nil {
@@ -211,12 +218,12 @@ func processRecord(ctx context.Context, store *storage.Store, record types.Recor
 		return fmt.Errorf("persist event id %s %w", event.ID, err)
 	}
 
-	log.Printf(
-		"processed event id=%s type=%s metrics=%d sequence=%s",
-		event.ID,
-		event.Type,
-		len(updates),
-		aws.ToString(record.SequenceNumber),
+	logger.Info(
+		"event processed",
+		"event_id", event.ID,
+		"event_type", event.Type,
+		"sequence_number", aws.ToString(record.SequenceNumber),
+		"metrics", len(updates),
 	)
 
 	return nil
