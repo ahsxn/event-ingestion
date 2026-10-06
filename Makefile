@@ -24,6 +24,9 @@ LOCAL_AWS := env \
 AWS_PROFILE ?= event-ingestion
 AWS_REGION ?= eu-north-1
 
+AWS_WORKER_REPOSITORY = $(shell cd $(AWS_INFRA_DIR) && AWS_PROFILE=$(AWS_PROFILE) terraform output -raw worker_repository_url 2>/dev/null)
+AWS_WORKER_IMAGE = $(AWS_WORKER_REPOSITORY):dev
+
 # ------------------------------------------------------------------------------
 # Help
 # ------------------------------------------------------------------------------
@@ -250,3 +253,43 @@ aws-tf-apply:
 		AWS_REGION=$(AWS_REGION) \
 		TF_VAR_aws_region=$(AWS_REGION) \
 		terraform apply
+
+.PHONY: aws-ecr-login
+aws-ecr-login:
+	@test -n "$(AWS_WORKER_REPOSITORY)" || \
+		(echo "Real AWS worker ECR repository not found." && exit 1)
+	AWS_PROFILE=$(AWS_PROFILE) \
+	aws ecr get-login-password \
+		--region $(AWS_REGION) \
+		| docker login \
+			--username AWS \
+			--password-stdin \
+			$$(echo "$(AWS_WORKER_REPOSITORY)" | cut -d/ -f1)
+
+.PHONY: aws-worker-build
+aws-worker-build:
+	@test -n "$(AWS_WORKER_REPOSITORY)" || \
+		(echo "Real AWS worker ECR repository not found." && exit 1)
+	docker build \
+		-f Dockerfile.worker \
+		-t $(AWS_WORKER_IMAGE) \
+		.
+
+.PHONY: aws-worker-push
+aws-worker-push: aws-ecr-login
+	@test -n "$(AWS_WORKER_REPOSITORY)" || \
+		(echo "Real AWS worker ECR repository not found." && exit 1)
+	docker push $(AWS_WORKER_IMAGE)
+
+# .PHONY: aws-worker-image
+# aws-worker-image: aws-worker-build aws-worker-push
+
+.PHONY: aws-worker-deploy
+aws-worker-deploy: aws-worker-push
+	AWS_PROFILE=$(AWS_PROFILE) \
+	aws ecs update-service \
+		--cluster event-ingestion \
+		--service event-ingestion-worker \
+		--force-new-deployment \
+		--region $(AWS_REGION) \
+		--no-cli-pager
