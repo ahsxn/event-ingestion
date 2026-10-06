@@ -5,6 +5,7 @@ services:
     environment:
       FLOCI_HOSTNAME: floci
       FLOCI_SERVICES_ECR_URI_STYLE: path
+      FLOCI_RUN_AS_ROOT: "true"
 
     ports:
       - "4566:4566"

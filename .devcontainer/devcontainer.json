@@ -15,15 +15,13 @@
             "version": "lts"
         }
     },
+    "postCreateCommand": "sudo mkdir -p /home/vscode/.aws /home/vscode/.terraform.d && sudo chown -R vscode:vscode /home/vscode/.aws /home/vscode/.terraform.d",
     "forwardPorts": [
         4566,
         8000,
         5173
     ],
-    "containerEnv": {
-        "AWS_DEFAULT_REGION": "us-east-1",
-        "AWS_ACCESS_KEY_ID": "test",
-        "AWS_SECRET_ACCESS_KEY": "test",
-        "AWS_ENDPOINT_URL": "http://localhost:4566"
-    }
+    "mounts": [
+        "source=event-ingestion-aws,target=/home/vscode/.aws,type=volume"
+    ]
 }

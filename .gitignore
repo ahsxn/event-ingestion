@@ -2,3 +2,4 @@
 *.tfstate
 *.tfstate.*
 /build/
+infra/aws/backend.hcl
