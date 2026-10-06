@@ -68,13 +68,35 @@ resource "aws_iam_role_policy" "worker" {
         Effect = "Allow"
 
         Action = [
-          "dynamodb:TransactWriteItems",
+          "dynamodb:PutItem",
         ]
 
-        Resource = [
-          aws_dynamodb_table.metrics.arn,
-          aws_dynamodb_table.processed_events.arn,
+        Resource = aws_dynamodb_table.processed_events.arn
+
+        Condition = {
+          "ForAnyValue:StringEquals" = {
+            "dynamodb:EnclosingOperation" = [
+              "TransactWriteItems",
+            ]
+          }
+        }
+      },
+      {
+        Effect = "Allow"
+
+        Action = [
+          "dynamodb:UpdateItem",
         ]
+
+        Resource = aws_dynamodb_table.metrics.arn
+
+        Condition = {
+          "ForAnyValue:StringEquals" = {
+            "dynamodb:EnclosingOperation" = [
+              "TransactWriteItems",
+            ]
+          }
+        }
       }
     ]
   })

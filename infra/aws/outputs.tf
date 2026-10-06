@@ -57,3 +57,8 @@ output "worker_service_name" {
   description = "ECS worker service name"
   value       = aws_ecs_service.worker.name
 }
+
+output "events_api_url" {
+  description = "Public event ingestion endpoint"
+  value       = "${aws_apigatewayv2_api.ingest.api_endpoint}/events"
+}
