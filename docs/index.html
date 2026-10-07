@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Event Ingestion Pipeline</title>
+
+    <meta
+        name="description"
+        content="A portfolio project built with Go, AWS, Terraform, Laravel and React."
+    >
+
+    <link rel="stylesheet" href="./styles.css">
+</head>
+
+<body>
+    <main class="page">
+        <header class="hero">
+            <h1>Event Ingestion Pipeline</h1>
+
+            <p class="intro">
+                An event-driven AWS application built with Go, Terraform,
+                Laravel and React.
+            </p>
+
+            <div class="actions">
+                <a
+                    class="button button-primary"
+                    href="http://13.62.151.111/"
+                    target="_blank"
+                    rel="noreferrer"
+                >
+                    Live Demo
+                </a>
+
+                <a
+                    class="button button-secondary"
+                    href="https://github.com/ahsxn/event-ingestion"
+                    target="_blank"
+                    rel="noreferrer"
+                >
+                    View Source
+                </a>
+            </div>
+
+            <p class="note">
+                The live AWS demo may occasionally be offline from 10:00 pm to 8:00 am while the
+                environment is sleeping to reduce costs.
+            </p>
+        </header>
+
+        <section class="section">
+            <h2>Architecture</h2>
+
+            <div class="pipeline">
+                <span>Producer</span>
+                <span>→</span>
+                <span>API Gateway</span>
+                <span>→</span>
+                <span>Go Lambda</span>
+                <span>→</span>
+                <span>Kinesis</span>
+                <span>→</span>
+                <span>Go ECS Worker</span>
+                <span>→</span>
+                <span>DynamoDB</span>
+            </div>
+
+            <p>
+                Events are accepted through API Gateway, validated by a Go
+                Lambda function and written to Kinesis. A Go worker running on
+                ECS processes the stream and updates aggregate metrics in
+                DynamoDB.
+            </p>
+
+            <p>
+                A Laravel and React dashboard reads those metrics and provides
+                a simple interface for demonstrating the pipeline.
+            </p>
+        </section>
+
+        <section class="section">
+            <h2>Stack</h2>
+
+            <div class="tags">
+                <span>Go</span>
+                <span>AWS</span>
+                <span>Lambda</span>
+                <span>API Gateway</span>
+                <span>Kinesis</span>
+                <span>ECS</span>
+                <span>EC2</span>
+                <span>DynamoDB</span>
+                <span>Terraform</span>
+                <span>Docker</span>
+                <span>Laravel</span>
+                <span>React</span>
+                <span>GitHub Actions</span>
+            </div>
+        </section>
+
+        <footer>
+            <p>
+                Source, infrastructure and deployment automation are available
+                in the GitHub repository.
+            </p>
+        </footer>
+    </main>
+</body>
+</html>
