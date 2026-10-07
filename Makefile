@@ -27,6 +27,9 @@ AWS_REGION ?= eu-north-1
 AWS_WORKER_REPOSITORY = $(shell cd $(AWS_INFRA_DIR) && AWS_PROFILE=$(AWS_PROFILE) terraform output -raw worker_repository_url 2>/dev/null)
 AWS_WORKER_IMAGE = $(AWS_WORKER_REPOSITORY):dev
 
+AWS_DASHBOARD_REPOSITORY = $(shell cd $(AWS_INFRA_DIR) && AWS_PROFILE=$(AWS_PROFILE) terraform output -raw dashboard_repository_url 2>/dev/null)
+AWS_DASHBOARD_IMAGE = $(AWS_DASHBOARD_REPOSITORY):dev
+
 # ------------------------------------------------------------------------------
 # Help
 # ------------------------------------------------------------------------------
@@ -290,6 +293,32 @@ aws-worker-deploy: aws-worker-push
 	aws ecs update-service \
 		--cluster event-ingestion \
 		--service event-ingestion-worker \
+		--force-new-deployment \
+		--region $(AWS_REGION) \
+		--no-cli-pager
+
+.PHONY: aws-dashboard-build
+aws-dashboard-build:
+	@test -n "$(AWS_DASHBOARD_REPOSITORY)" || \
+		(echo "Real AWS dashboard ECR repository not found." && exit 1)
+	docker build \
+		-f Dockerfile.dashboard \
+		-t $(AWS_DASHBOARD_IMAGE) \
+		.
+
+.PHONY: aws-dashboard-push
+aws-dashboard-push: aws-dashboard-build aws-ecr-login
+	docker push $(AWS_DASHBOARD_IMAGE)
+
+.PHONY: aws-dashboard-image
+aws-dashboard-image: aws-dashboard-push
+
+.PHONY: aws-dashboard-deploy
+aws-dashboard-deploy: aws-dashboard-push
+	AWS_PROFILE=$(AWS_PROFILE) \
+	aws ecs update-service \
+		--cluster event-ingestion \
+		--service event-ingestion-dashboard \
 		--force-new-deployment \
 		--region $(AWS_REGION) \
 		--no-cli-pager

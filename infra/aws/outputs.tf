@@ -62,3 +62,23 @@ output "events_api_url" {
   description = "Public event ingestion endpoint"
   value       = "${aws_apigatewayv2_api.ingest.api_endpoint}/events"
 }
+
+output "dashboard_repository_url" {
+  description = "ECR repository URL for the dashboard image"
+  value       = aws_ecr_repository.dashboard.repository_url
+}
+
+output "dashboard_app_key_secret_arn" {
+  description = "Secrets Manager ARN containing the Laravel APP_KEY"
+  value       = aws_secretsmanager_secret.dashboard_app_key.arn
+}
+
+output "dashboard_service_name" {
+  description = "ECS dashboard service name"
+  value       = aws_ecs_service.dashboard.name
+}
+
+output "dashboard_url" {
+  description = "Public dashboard URL"
+  value       = "http://${aws_eip.ecs_host.public_ip}"
+}

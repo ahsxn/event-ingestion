@@ -6,3 +6,11 @@ build
 infra/.terraform
 infra/*.tfstate
 infra/*.tfstate.*
+
+dashboard/.env
+dashboard/.env.*
+!dashboard/.env.example
+
+dashboard/node_modules
+dashboard/vendor
+dashboard/bootstrap/cache/*.php
