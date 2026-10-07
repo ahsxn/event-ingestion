@@ -22,6 +22,7 @@ jobs:
           aws-region: eu-north-1
           role-to-assume: arn:aws:iam::523741415941:role/event-ingestion-github-deploy
           role-session-name: github-actions
+          role-skip-session-tagging: true
           allowed-account-ids: "523741415941"
 
       - name: Verify AWS identity
