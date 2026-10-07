@@ -1,0 +1,5 @@
+github_owner         = "ahsxn"
+github_owner_id      = "13357917"
+github_repository    = "event-ingestion"
+github_repository_id = "1408973439"
+github_branch        = "master"
