@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches:
+      - master
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test and validate
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.1"
+
+      - name: Run Go tests
+        run: go test ./...
+
+      - name: Build ingestion Lambda
+        run: make ingest-build
+
+      - name: Check Terraform formatting
+        run: terraform fmt -check -recursive infra
+
+      - name: Initialise local Terraform
+        working-directory: infra
+        run: terraform init -backend=false
+
+      - name: Validate local Terraform
+        working-directory: infra
+        run: terraform validate
+
+      - name: Initialise AWS Terraform
+        working-directory: infra/aws
+        run: terraform init -backend=false
+
+      - name: Validate AWS Terraform
+        working-directory: infra/aws
+        run: terraform validate
+
+      - name: Initialise persistent Terraform
+        working-directory: infra/aws/persistent
+        run: terraform init -backend=false
+
+      - name: Validate persistent Terraform
+        working-directory: infra/aws/persistent
+        run: terraform validate
+
+      - name: Build worker image
+        run: |
+          docker build \
+            -f Dockerfile.worker \
+            -t event-ingestion-worker:ci \
+            .
+
+      - name: Build dashboard image
+        run: |
+          docker build \
+            -f Dockerfile.dashboard \
+            -t event-ingestion-dashboard:ci \
+            .
