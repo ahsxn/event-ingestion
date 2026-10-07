@@ -1,0 +1,72 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: eu-north-1
+  AWS_PROFILE: event-ingestion
+
+jobs:
+  deploy:
+    name: Deploy to AWS
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: "1.16.1"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: eu-north-1
+          role-to-assume: arn:aws:iam::523741415941:role/event-ingestion-github-deploy
+          role-session-name: github-actions-deploy
+          role-skip-session-tagging: true
+          allowed-account-ids: "523741415941"
+          aws-profile: event-ingestion
+          role-chaining: true
+
+      - name: Verify deployment identity
+        run: aws sts get-caller-identity --profile event-ingestion
+
+      - name: Initialise persistent Terraform
+        run: make aws-persistent-init
+
+      - name: Initialise application Terraform
+        run: make aws-tf-init
+
+      - name: Deploy application
+        run: make aws-wake TF_APPLY_ARGS=-auto-approve
+
+      - name: Show dashboard URL
+        run: |
+          DASHBOARD_URL="$(
+            cd infra/aws &&
+            AWS_PROFILE=event-ingestion terraform output -raw dashboard_url
+          )"
+
+          echo "Dashboard: ${DASHBOARD_URL}"
+          echo "### Deployment complete" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Dashboard: ${DASHBOARD_URL}" >> "$GITHUB_STEP_SUMMARY"

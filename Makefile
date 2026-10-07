@@ -31,6 +31,8 @@ AWS_WORKER_IMAGE = $(AWS_WORKER_REPOSITORY):dev
 AWS_DASHBOARD_REPOSITORY = $(shell cd $(AWS_INFRA_DIR) && AWS_PROFILE=$(AWS_PROFILE) terraform output -raw dashboard_repository_url 2>/dev/null)
 AWS_DASHBOARD_IMAGE = $(AWS_DASHBOARD_REPOSITORY):dev
 
+TF_APPLY_ARGS ?=
+
 # ------------------------------------------------------------------------------
 # Help
 # ------------------------------------------------------------------------------
@@ -256,7 +258,7 @@ aws-tf-apply:
 		AWS_PROFILE=$(AWS_PROFILE) \
 		AWS_REGION=$(AWS_REGION) \
 		TF_VAR_aws_region=$(AWS_REGION) \
-		terraform apply
+		terraform apply $(TF_APPLY_ARGS)
 
 .PHONY: aws-ecr-login
 aws-ecr-login:
@@ -376,7 +378,7 @@ aws-app-up:
 		SECRET_ARN="$$(cd $(AWS_INFRA_DIR) && \
 			AWS_PROFILE=$(AWS_PROFILE) \
 			terraform output -raw dashboard_app_key_secret_arn)"; \
-		APP_KEY="$$(cd $(DASHBOARD_DIR) && php artisan key:generate --show)"; \
+		APP_KEY="base64:$$(openssl rand -base64 32 | tr -d '\n')"; \
 		AWS_PROFILE=$(AWS_PROFILE) \
 		AWS_REGION=$(AWS_REGION) \
 		aws secretsmanager put-secret-value \

@@ -115,3 +115,162 @@ output "github_deploy_role_arn" {
   description = "IAM role used by GitHub Actions deployments"
   value       = aws_iam_role.github_deploy.arn
 }
+
+data "aws_caller_identity" "current" {}
+
+locals {
+  github_managed_role_arns = [
+    "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/event-ingestion-ecs-instance",
+    "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/event-ingestion-ingest",
+    "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/event-ingestion-worker-execution",
+    "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/event-ingestion-worker-task",
+    "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/event-ingestion-dashboard-execution",
+    "arn:aws:iam::${data.aws_caller_identity.current.account_id}:role/event-ingestion-dashboard-task",
+  ]
+
+  github_instance_profile_arns = [
+    "arn:aws:iam::${data.aws_caller_identity.current.account_id}:instance-profile/event-ingestion-ecs-instance",
+  ]
+}
+
+resource "aws_iam_role_policy" "github_deploy" {
+  name = "event-ingestion-github-deploy"
+  role = aws_iam_role.github_deploy.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Sid    = "TerraformStateBucket"
+        Effect = "Allow"
+
+        Action = [
+          "s3:ListBucket",
+          "s3:GetBucketLocation",
+        ]
+
+        Resource = "arn:aws:s3:::event-ingestion-tfstate-523741415941"
+      },
+      {
+        Sid    = "TerraformStateObjects"
+        Effect = "Allow"
+
+        Action = [
+          "s3:GetObject",
+          "s3:PutObject",
+          "s3:DeleteObject",
+        ]
+
+        Resource = "arn:aws:s3:::event-ingestion-tfstate-523741415941/portfolio/*"
+      },
+      {
+        Sid    = "ProjectServices"
+        Effect = "Allow"
+
+        Action = [
+          "ec2:*",
+          "ecs:*",
+          "ecr:*",
+          "lambda:*",
+          "apigateway:*",
+          "dynamodb:*",
+          "kinesis:*",
+          "logs:*",
+          "secretsmanager:*",
+        ]
+
+        Resource = "*"
+
+        Condition = {
+          StringEquals = {
+            "aws:RequestedRegion" = var.aws_region
+          }
+        }
+      },
+      {
+        Sid    = "ProtectPersistentElasticIP"
+        Effect = "Deny"
+
+        Action = [
+          "ec2:AllocateAddress",
+          "ec2:ReleaseAddress",
+        ]
+
+        Resource = "*"
+      },
+      {
+        Sid    = "ReadECSOptimizedAMI"
+        Effect = "Allow"
+
+        Action = [
+          "ssm:GetParameter",
+        ]
+
+        Resource = "arn:aws:ssm:${var.aws_region}::parameter/aws/service/ecs/optimized-ami/amazon-linux-2023/recommended/image_id"
+      },
+      {
+        Sid    = "ManageApplicationRoles"
+        Effect = "Allow"
+
+        Action = [
+          "iam:CreateRole",
+          "iam:DeleteRole",
+          "iam:GetRole",
+          "iam:UpdateAssumeRolePolicy",
+          "iam:TagRole",
+          "iam:UntagRole",
+          "iam:PutRolePolicy",
+          "iam:GetRolePolicy",
+          "iam:DeleteRolePolicy",
+          "iam:ListRolePolicies",
+          "iam:AttachRolePolicy",
+          "iam:DetachRolePolicy",
+          "iam:ListAttachedRolePolicies",
+          "iam:ListInstanceProfilesForRole",
+        ]
+
+        Resource = local.github_managed_role_arns
+      },
+      {
+        Sid    = "ManageApplicationInstanceProfile"
+        Effect = "Allow"
+
+        Action = [
+          "iam:CreateInstanceProfile",
+          "iam:DeleteInstanceProfile",
+          "iam:GetInstanceProfile",
+          "iam:AddRoleToInstanceProfile",
+          "iam:RemoveRoleFromInstanceProfile",
+          "iam:TagInstanceProfile",
+          "iam:UntagInstanceProfile",
+        ]
+
+        Resource = concat(
+          local.github_managed_role_arns,
+          local.github_instance_profile_arns,
+        )
+      },
+      {
+        Sid    = "PassApplicationRoles"
+        Effect = "Allow"
+
+        Action = [
+          "iam:PassRole",
+        ]
+
+        Resource = local.github_managed_role_arns
+
+        Condition = {
+          StringEquals = {
+            "iam:PassedToService" = [
+              "ec2.amazonaws.com",
+              "ecs-tasks.amazonaws.com",
+              "lambda.amazonaws.com",
+            ]
+          }
+        }
+      }
+    ]
+  })
+}
