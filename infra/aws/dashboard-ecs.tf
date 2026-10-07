@@ -125,7 +125,7 @@ resource "aws_ecs_task_definition" "dashboard" {
         },
         {
           name  = "APP_URL"
-          value = "http://${aws_eip.ecs_host.public_ip}"
+          value = "http://${data.aws_eip.ecs_host.public_ip}"
         },
         {
           name  = "LOG_CHANNEL"
@@ -186,7 +186,7 @@ resource "aws_ecs_service" "dashboard" {
   cluster = aws_ecs_cluster.main.id
 
   task_definition = aws_ecs_task_definition.dashboard.arn
-  desired_count   = 1
+  desired_count   = var.services_enabled ? 1 : 0
   launch_type     = "EC2"
 
   deployment_minimum_healthy_percent = 0

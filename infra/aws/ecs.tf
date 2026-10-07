@@ -77,9 +77,7 @@ resource "aws_instance" "ecs_host" {
   }
 }
 
-resource "aws_eip" "ecs_host" {
-  domain = "vpc"
-
+data "aws_eip" "ecs_host" {
   tags = {
     Name = "event-ingestion"
   }
@@ -87,5 +85,5 @@ resource "aws_eip" "ecs_host" {
 
 resource "aws_eip_association" "ecs_host" {
   instance_id   = aws_instance.ecs_host.id
-  allocation_id = aws_eip.ecs_host.id
+  allocation_id = data.aws_eip.ecs_host.id
 }

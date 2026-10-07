@@ -162,7 +162,7 @@ resource "aws_ecs_service" "worker" {
   cluster = aws_ecs_cluster.main.id
 
   task_definition = aws_ecs_task_definition.worker.arn
-  desired_count   = 1
+  desired_count   = var.services_enabled ? 1 : 0
   launch_type     = "EC2"
 
   deployment_minimum_healthy_percent = 0

@@ -6,6 +6,7 @@ INFRA_DIR := infra
 AWS_INFRA_DIR := infra/aws
 DASHBOARD_DIR := dashboard
 BUILD_DIR := build
+AWS_PERSISTENT_DIR := $(AWS_INFRA_DIR)/persistent
 
 # Local Floci configuration
 ECR_REGISTRY := localhost:4566
@@ -279,13 +280,11 @@ aws-worker-build:
 		.
 
 .PHONY: aws-worker-push
-aws-worker-push: aws-ecr-login
-	@test -n "$(AWS_WORKER_REPOSITORY)" || \
-		(echo "Real AWS worker ECR repository not found." && exit 1)
+aws-worker-push: aws-worker-build aws-ecr-login
 	docker push $(AWS_WORKER_IMAGE)
 
-# .PHONY: aws-worker-image
-# aws-worker-image: aws-worker-build aws-worker-push
+.PHONY: aws-worker-image
+aws-worker-image: aws-worker-push
 
 .PHONY: aws-worker-deploy
 aws-worker-deploy: aws-worker-push
@@ -322,3 +321,102 @@ aws-dashboard-deploy: aws-dashboard-push
 		--force-new-deployment \
 		--region $(AWS_REGION) \
 		--no-cli-pager
+
+.PHONY: aws-tf-destroy
+aws-tf-destroy:
+	cd $(AWS_INFRA_DIR) && \
+		AWS_PROFILE=$(AWS_PROFILE) \
+		AWS_REGION=$(AWS_REGION) \
+		TF_VAR_aws_region=$(AWS_REGION) \
+		terraform destroy
+
+.PHONY: aws-persistent-init
+aws-persistent-init:
+	cd $(AWS_PERSISTENT_DIR) && \
+		AWS_PROFILE=$(AWS_PROFILE) \
+		AWS_REGION=$(AWS_REGION) \
+		TF_VAR_aws_region=$(AWS_REGION) \
+		terraform init -reconfigure -backend-config=backend.hcl
+
+.PHONY: aws-persistent-apply
+aws-persistent-apply: aws-persistent-init
+	cd $(AWS_PERSISTENT_DIR) && \
+		AWS_PROFILE=$(AWS_PROFILE) \
+		AWS_REGION=$(AWS_REGION) \
+		TF_VAR_aws_region=$(AWS_REGION) \
+		terraform apply
+
+.PHONY: aws-persistent-destroy
+aws-persistent-destroy: aws-persistent-init
+	cd $(AWS_PERSISTENT_DIR) && \
+		AWS_PROFILE=$(AWS_PROFILE) \
+		AWS_REGION=$(AWS_REGION) \
+		TF_VAR_aws_region=$(AWS_REGION) \
+		terraform destroy
+
+.PHONY: aws-persistent-ip
+aws-persistent-ip:
+	@cd $(AWS_PERSISTENT_DIR) && \
+		AWS_PROFILE=$(AWS_PROFILE) \
+		terraform output -raw ecs_host_public_ip
+	@echo
+
+.PHONY: aws-persistent-check
+aws-persistent-check:
+	@cd $(AWS_PERSISTENT_DIR) && \
+		AWS_PROFILE=$(AWS_PROFILE) \
+		terraform state show aws_eip.ecs_host >/dev/null 2>&1 || \
+		(echo "Persistent Elastic IP does not exist. Use 'make aws-up' instead." && exit 1)
+
+.PHONY: aws-app-up
+aws-app-up:
+	$(MAKE) ingest-build
+	TF_VAR_services_enabled=false $(MAKE) aws-tf-apply
+	@set -euo pipefail; \
+		SECRET_ARN="$$(cd $(AWS_INFRA_DIR) && \
+			AWS_PROFILE=$(AWS_PROFILE) \
+			terraform output -raw dashboard_app_key_secret_arn)"; \
+		APP_KEY="$$(cd $(DASHBOARD_DIR) && php artisan key:generate --show)"; \
+		AWS_PROFILE=$(AWS_PROFILE) \
+		AWS_REGION=$(AWS_REGION) \
+		aws secretsmanager put-secret-value \
+			--secret-id "$$SECRET_ARN" \
+			--secret-string "$$APP_KEY" \
+			--region $(AWS_REGION) \
+			--no-cli-pager >/dev/null; \
+		unset APP_KEY; \
+		echo "Dashboard APP_KEY stored in Secrets Manager."
+	$(MAKE) aws-worker-image
+	$(MAKE) aws-dashboard-image
+	$(MAKE) aws-tf-apply
+	@echo
+	@echo "AWS application is running:"
+	@cd $(AWS_INFRA_DIR) && \
+		AWS_PROFILE=$(AWS_PROFILE) \
+		terraform output -raw dashboard_url
+	@echo
+
+.PHONY: aws-sleep
+aws-sleep:
+	$(MAKE) aws-tf-destroy
+	@echo
+	@echo "AWS application destroyed."
+	@echo "Persistent Elastic IP retained:"
+	@$(MAKE) --no-print-directory aws-persistent-ip
+
+.PHONY: aws-wake
+aws-wake:
+	$(MAKE) aws-persistent-check
+	$(MAKE) aws-app-up
+
+.PHONY: aws-down
+aws-down:
+	$(MAKE) aws-tf-destroy
+	$(MAKE) aws-persistent-destroy
+	@echo
+	@echo "All AWS project infrastructure destroyed, including the Elastic IP."
+
+.PHONY: aws-up
+aws-up:
+	$(MAKE) aws-persistent-apply
+	$(MAKE) aws-app-up

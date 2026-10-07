@@ -30,7 +30,7 @@ output "ecs_host_instance_id" {
 
 output "ecs_host_public_ip" {
   description = "Static public IP of the ECS host"
-  value       = aws_eip.ecs_host.public_ip
+  value       = data.aws_eip.ecs_host.public_ip
 }
 
 output "worker_repository_url" {
@@ -80,5 +80,5 @@ output "dashboard_service_name" {
 
 output "dashboard_url" {
   description = "Public dashboard URL"
-  value       = "http://${aws_eip.ecs_host.public_ip}"
+  value       = "http://${data.aws_eip.ecs_host.public_ip}"
 }
