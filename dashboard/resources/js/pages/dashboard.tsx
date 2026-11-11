@@ -6,12 +6,16 @@ import { Pipeline } from '@/components/dashboard/pipeline';
 import { ProductTable } from '@/components/dashboard/product-table';
 import { useDashboardPolling } from '@/hooks/use-dashboard-polling';
 import type { DashboardProps } from '@/types/dashboard';
+import { SimulationControls } from '@/components/dashboard/simulation-controls';
+import { ThroughputChart } from '@/components/dashboard/throughput-chart';
+import { useSimulation } from '@/hooks/use-simulation';
 
 export default function Dashboard({
     metrics,
     products,
 }: DashboardProps) {
     useDashboardPolling();
+    const simulationController = useSimulation();
 
     return (
         <>
@@ -39,9 +43,16 @@ export default function Dashboard({
                     </header>
 
                     <div className="space-y-8">
-                        <Pipeline />
+                        {/* <Pipeline /> */}
 
-                        <EventActions />
+                       <SimulationControls controller={simulationController} />
+
+                        <ThroughputChart
+                            metrics={metrics}
+                            simulation={simulationController.simulation}
+                        />
+
+                        {/* <EventActions /> */}
 
                         <MetricGrid metrics={metrics} />
 
