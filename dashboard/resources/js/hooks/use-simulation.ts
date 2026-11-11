@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 
+import SimulationController from '@/actions/App/Http/Controllers/SimulationController';
+import {
+    SimulationRequestError,
+    simulationRequest,
+} from '@/lib/simulation-http';
+
 export type TrafficPattern = 'views' | 'balanced' | 'orders';
 export type TrafficRate = 10 | 25 | 50 | 100;
 export type SimulationDuration = 10 | 30;
@@ -33,51 +39,6 @@ type PulseResponse = {
     batch: BatchResult;
     simulation: SimulationSnapshot;
 };
-
-class SimulationRequestError extends Error {
-    constructor(
-        readonly status: number,
-        message: string,
-    ) {
-        super(message);
-    }
-}
-
-async function request<T>(
-    url: string,
-    method: 'GET' | 'POST',
-    body?: object,
-): Promise<T> {
-    const csrfToken = document.querySelector<HTMLMetaElement>(
-        'meta[name="csrf-token"]',
-    )?.content;
-
-    const response = await fetch(url, {
-        method,
-        credentials: 'same-origin',
-        headers: {
-            Accept: 'application/json',
-            'Content-Type': 'application/json',
-            ...(csrfToken ? { 'X-CSRF-TOKEN': csrfToken } : {}),
-        },
-        ...(body ? { body: JSON.stringify(body) } : {}),
-    });
-
-    const payload: unknown = await response.json().catch(() => ({}));
-
-    if (!response.ok) {
-        const error = payload as { message?: string; error?: string };
-
-        throw new SimulationRequestError(
-            response.status,
-            error.message ??
-                error.error ??
-                `Request failed (${response.status}).`,
-        );
-    }
-
-    return payload as T;
-}
 
 function mergeSnapshot(
     previous: SimulationSnapshot | null,
@@ -121,8 +82,16 @@ export function useSimulation() {
     const paused = useRef(false);
     const pulseInFlight = useRef(false);
     const actionVersion = useRef(0);
+    const cooldownEndsAt = useRef<number | null>(null);
 
     const updateSnapshot = useCallback((incoming: SimulationSnapshot) => {
+        if (incoming.status === 'stopped' || incoming.status === 'completed') {
+            cooldownEndsAt.current =
+                Date.now() + (incoming.cooldown_seconds ?? 0) * 1000;
+        } else if (incoming.status === 'idle') {
+            cooldownEndsAt.current = null;
+        }
+
         setSimulation((previous) => mergeSnapshot(previous, incoming));
     }, []);
 
@@ -130,9 +99,8 @@ export function useSimulation() {
         const version = actionVersion.current;
 
         try {
-            const status = await request<SimulationSnapshot>(
-                '/simulations/status',
-                'GET',
+            const status = await simulationRequest<SimulationSnapshot>(
+                SimulationController.status(),
             );
 
             if (version === actionVersion.current) {
@@ -147,13 +115,67 @@ export function useSimulation() {
 
     useEffect(() => {
         void refreshStatus();
+    }, [refreshStatus]);
+
+
+    useEffect(() => {
+        if (simulation?.status !== 'running') {
+            return;
+        }
 
         const interval = window.setInterval(() => {
-            void refreshStatus();
+            if (!document.hidden) {
+                void refreshStatus();
+            }
         }, 1500);
 
+        const onVisibilityChange = () => {
+            if (!document.hidden) {
+                void refreshStatus();
+            }
+        };
+
+        document.addEventListener('visibilitychange', onVisibilityChange);
+
+        return () => {
+            window.clearInterval(interval);
+            document.removeEventListener(
+                'visibilitychange',
+                onVisibilityChange,
+            );
+        };
+    }, [simulation?.status, refreshStatus]);
+
+    const coolingDown =
+        simulation?.status !== 'running' &&
+        (simulation?.cooldown_seconds ?? 0) > 0;
+
+    useEffect(() => {
+        if (!coolingDown) {
+            return;
+        }
+
+        const interval = window.setInterval(() => {
+            const remaining = Math.max(
+                0,
+                Math.ceil(((cooldownEndsAt.current ?? 0) - Date.now()) / 1000),
+            );
+
+            setSimulation((previous) => {
+                if (
+                    !previous ||
+                    previous.status === 'running' ||
+                    previous.cooldown_seconds === remaining
+                ) {
+                    return previous;
+                }
+
+                return { ...previous, cooldown_seconds: remaining };
+            });
+        }, 1000);
+
         return () => window.clearInterval(interval);
-    }, [refreshStatus]);
+    }, [coolingDown]);
 
     const runningId =
         simulation?.status === 'running' && simulation.can_control
@@ -189,9 +211,8 @@ export function useSimulation() {
 
             pulseInFlight.current = true;
 
-            void request<PulseResponse>(
-                `/simulations/${runningId}/pulse`,
-                'POST',
+            void simulationRequest<PulseResponse>(
+                SimulationController.pulse({ id: runningId }),
                 { count },
             )
                 .then((result) => {
@@ -204,8 +225,6 @@ export function useSimulation() {
                         return;
                     }
 
-                    // A pulse may arrive slightly ahead of the server token bucket.
-                    // Skip that pulse; never queue requests to catch up later.
                     if (
                         cause instanceof SimulationRequestError &&
                         cause.status === 429 &&
@@ -239,14 +258,9 @@ export function useSimulation() {
         actionVersion.current++;
 
         try {
-            const status = await request<SimulationSnapshot>(
-                '/simulations',
-                'POST',
-                {
-                    pattern,
-                    rate,
-                    duration,
-                },
+            const status = await simulationRequest<SimulationSnapshot>(
+                SimulationController.start(),
+                { pattern, rate, duration },
             );
 
             paused.current = false;
@@ -270,9 +284,8 @@ export function useSimulation() {
         actionVersion.current++;
 
         try {
-            const status = await request<SimulationSnapshot>(
-                `/simulations/${runningId}/stop`,
-                'POST',
+            const status = await simulationRequest<SimulationSnapshot>(
+                SimulationController.stop({ id: runningId }),
             );
 
             updateSnapshot(status);

@@ -1,8 +1,5 @@
 import { Head } from '@inertiajs/react';
-
-import { EventActions } from '@/components/dashboard/event-actions';
 import { MetricGrid } from '@/components/dashboard/metric-grid';
-import { Pipeline } from '@/components/dashboard/pipeline';
 import { ProductTable } from '@/components/dashboard/product-table';
 import { useDashboardPolling } from '@/hooks/use-dashboard-polling';
 import type { DashboardProps } from '@/types/dashboard';
@@ -14,8 +11,8 @@ export default function Dashboard({
     metrics,
     products,
 }: DashboardProps) {
-    useDashboardPolling();
     const simulationController = useSimulation();
+    useDashboardPolling(simulationController.simulation?.status === 'running');
 
     return (
         <>
